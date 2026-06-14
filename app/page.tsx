@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LEARNING_PATHS } from './lib/paths';
-import { AWS_STEPS, AZURE_STEPS, AWS_PHASES, AZURE_PHASES, type CloudPath } from './lib/steps';
+import { AWS_STEPS, AZURE_STEPS, AWS_PHASES, AZURE_PHASES, GCP_STEPS, GCP_PHASES, AGNOSTIC_STEPS, AGNOSTIC_PHASES, type CloudPath } from './lib/steps';
 
 type Status = 'pending' | 'validating' | 'passed' | 'failed';
 type AuthInfo = { authenticated: boolean; accountName?: string };
@@ -80,10 +80,12 @@ function ProviderScreen({ onSelect, onBack }: { onSelect: (p: CloudPath) => void
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 80 }} className="text-center">
         <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="text-3xl font-bold text-gray-900 mb-2">Hyperscaler Data Pipelines</motion.h2>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-gray-500 mb-12">Choose your cloud provider to begin</motion.p>
-        <div className="flex gap-6">
+        <div className="grid grid-cols-2 gap-5">
           {[
             { id: 'aws' as CloudPath, label: 'AWS', sub: 'Kinesis · S3 · Glue · Athena', emoji: '🟠', gradient: 'from-orange-50 to-white hover:from-orange-100', border: 'border-orange-200 hover:border-orange-400' },
             { id: 'azure' as CloudPath, label: 'Azure', sub: 'Event Hubs · ADLS · Synapse', emoji: '🔵', gradient: 'from-blue-50 to-white hover:from-blue-100', border: 'border-blue-200 hover:border-blue-400' },
+            { id: 'gcp' as CloudPath, label: 'GCP', sub: 'Pub/Sub · GCS · BigQuery', emoji: '🔴', gradient: 'from-red-50 to-white hover:from-red-100', border: 'border-red-200 hover:border-red-400' },
+            { id: 'agnostic' as CloudPath, label: 'Cloud Agnostic', sub: 'Kafka · MinIO · PostgreSQL', emoji: '🟢', gradient: 'from-emerald-50 to-white hover:from-emerald-100', border: 'border-emerald-200 hover:border-emerald-400' },
           ].map((p, i) => (
             <motion.button key={p.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.1, type: 'spring' }} whileHover={{ y: -6, boxShadow: '0 20px 40px -12px rgba(0,0,0,0.1)' }} whileTap={{ scale: 0.95 }} onClick={() => onSelect(p.id)} className={`w-56 p-8 rounded-2xl border-2 ${p.border} bg-gradient-to-b ${p.gradient} transition-all`}>
               <motion.span className="text-4xl block mb-3" animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 2, delay: i * 0.3 }}>{p.emoji}</motion.span>
@@ -130,8 +132,8 @@ export default function Home() {
     fetch('/api/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ screen, provider, currentStepIndex, stepStatuses, validationMessages, inputs }) });
   }, [loaded, screen, provider, currentStepIndex, stepStatuses, validationMessages, inputs]);
 
-  const steps = provider === 'aws' ? AWS_STEPS : AZURE_STEPS;
-  const phases = provider === 'aws' ? AWS_PHASES : AZURE_PHASES;
+  const steps = provider === 'aws' ? AWS_STEPS : provider === 'azure' ? AZURE_STEPS : provider === 'gcp' ? GCP_STEPS : AGNOSTIC_STEPS;
+  const phases = provider === 'aws' ? AWS_PHASES : provider === 'azure' ? AZURE_PHASES : provider === 'gcp' ? GCP_PHASES : AGNOSTIC_PHASES;
   const step = steps[currentStepIndex] || steps[0];
   const passedCount = Object.values(stepStatuses).filter((s) => s === 'passed').length;
   const progress = steps.length ? (passedCount / steps.length) * 100 : 0;
@@ -154,7 +156,7 @@ export default function Home() {
     setStepStatuses((s) => ({ ...s, [step.id]: 'validating' }));
     setValidationMessages((m) => ({ ...m, [step.id]: '' }));
     try {
-      const res = await fetch(step.validateEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceName: value, region: provider === 'aws' ? 'us-east-1' : 'eastus2' }) });
+      const res = await fetch(step.validateEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceName: value, region: provider === 'aws' ? 'us-east-1' : provider === 'gcp' ? 'us-central1' : 'eastus2' }) });
       const data = await res.json();
       setStepStatuses((s) => ({ ...s, [step.id]: data.success ? 'passed' : 'failed' }));
       setValidationMessages((m) => ({ ...m, [step.id]: data.message }));
@@ -180,7 +182,7 @@ export default function Home() {
         <button onClick={() => { setProvider(null); setScreen('provider'); }} className="text-blue-500 hover:text-blue-700 mr-3 transition">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${provider === 'aws' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>{provider}</span>
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${provider === 'aws' ? 'bg-orange-100 text-orange-600' : provider === 'gcp' ? 'bg-red-100 text-red-600' : provider === 'agnostic' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>{provider}</span>
         <span className="ml-2 text-sm font-medium text-gray-700">Hyperscaler Pipelines</span>
 
         <div className="ml-auto flex items-center gap-4">

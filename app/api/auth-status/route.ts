@@ -31,5 +31,27 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ error: 'Provide ?provider=aws or ?provider=azure' }, { status: 400 });
+  if (provider === 'gcp') {
+    try {
+      const account = await runCli('gcloud config get-value account 2>/dev/null');
+      const project = await runCli('gcloud config get-value project 2>/dev/null');
+      if (!account || account === '(unset)') return NextResponse.json({ authenticated: false });
+      return NextResponse.json({ authenticated: true, accountName: `${project} (${account})` });
+    } catch {
+      return NextResponse.json({ authenticated: false });
+    }
+  }
+
+  if (provider === 'agnostic') {
+    try {
+      const output = await runCli('docker ps --format "{{.Names}}" 2>/dev/null | wc -l');
+      const count = parseInt(output.trim());
+      if (count > 0) return NextResponse.json({ authenticated: true, accountName: `${count} containers running` });
+      return NextResponse.json({ authenticated: false });
+    } catch {
+      return NextResponse.json({ authenticated: false });
+    }
+  }
+
+  return NextResponse.json({ error: 'Provide ?provider=aws|azure|gcp|agnostic' }, { status: 400 });
 }
